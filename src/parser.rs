@@ -58,6 +58,8 @@ fn parse_atom(lexer: &mut Peekable<Lexer<'_>>) -> Result<Atom, String> {
             "e0" => Atom::Basis(BasisElement::E0),
             "e1" => Atom::Basis(BasisElement::E1),
             "e2" => Atom::Basis(BasisElement::E2),
+            "e3" => Atom::Basis(BasisElement::E3),
+            "e4" => Atom::Basis(BasisElement::E4),
             _ if name
                 .strip_prefix('e')
                 .map_or(false, |number| number.parse::<isize>().is_ok()) =>

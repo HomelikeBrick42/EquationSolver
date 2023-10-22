@@ -11,12 +11,12 @@ pub struct Term(pub Vec<Atom>);
 pub enum Atom {
     Number(isize),
     Variable(String),
-    Basis(BasisElement),
     Group(Expression),
     Fraction {
         numerator: Expression,
         denominator: Expression,
     },
+    Basis(BasisElement),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -24,14 +24,17 @@ pub enum BasisElement {
     E0,
     E1,
     E2,
+    E3,
+    E4,
 }
 
 impl BasisElement {
     pub fn squares_to(&self) -> Atom {
-        match self {
+        match *self {
             BasisElement::E0 => Atom::Number(0),
-            BasisElement::E1 => Atom::Number(1),
-            BasisElement::E2 => Atom::Number(1),
+            BasisElement::E1 | BasisElement::E2 | BasisElement::E3 | BasisElement::E4 => {
+                Atom::Number(1)
+            }
         }
     }
 }
@@ -55,7 +58,7 @@ impl Atom {
                 }
             }
             (Atom::Group(_) | Atom::Fraction { .. }, _)
-            | (_, Atom::Group(_) | Atom::Fraction { .. }) => None,
+            | (_, Atom::Group(_) | Atom::Fraction { .. }) => None, // TODO: make this proper
         }
     }
 }
@@ -93,6 +96,8 @@ impl std::fmt::Display for Atom {
                 BasisElement::E0 => write!(f, "e0"),
                 BasisElement::E1 => write!(f, "e1"),
                 BasisElement::E2 => write!(f, "e2"),
+                BasisElement::E3 => write!(f, "e3"),
+                BasisElement::E4 => write!(f, "e4"),
             },
             Atom::Group(group) => write!(f, "({group})"),
             Atom::Fraction {
@@ -112,20 +117,22 @@ pub fn simplify_expression(Expression(terms): Expression) -> Expression {
 
     // Expand groups that are not multiplied by anything
     {
-        let mut new_terms = vec![];
-        terms.retain_mut(|Term(atoms)| {
-            if atoms.len() == 1 {
-                if let Atom::Group(Expression(terms)) = &mut atoms[0] {
-                    new_terms.append(terms);
-                    false
-                } else {
-                    true
+        let mut finished = false;
+        while !finished {
+            finished = true;
+            let mut new_terms = vec![];
+            terms.retain_mut(|Term(atoms)| {
+                if atoms.len() == 1 {
+                    if let Atom::Group(Expression(terms)) = &mut atoms[0] {
+                        finished = false;
+                        new_terms.append(terms);
+                        return false;
+                    }
                 }
-            } else {
                 true
-            }
-        });
-        terms.extend(new_terms);
+            });
+            terms.extend(new_terms);
+        }
     }
 
     fn are_like_terms(Term(a_atoms): &Term, Term(b_atoms): &Term) -> bool {
@@ -154,7 +161,7 @@ pub fn simplify_expression(Expression(terms): Expression) -> Expression {
         }
     }
 
-    // TODO: combine like terms
+    // Combine like terms
     {
         let mut i = 0;
         while i < terms.len() {
@@ -199,7 +206,83 @@ pub fn simplify_expression(Expression(terms): Expression) -> Expression {
         }
     }
 
-    // TODO: pull common factors out
+    // Pull common basis elements into groups
+    {
+        let mut i = 0;
+        while i < terms.len() {
+            let mut basis_element_count = 0;
+            {
+                let mut k = terms[i].0.len();
+                while let Atom::Basis(_) = terms[i].0[k - 1] {
+                    basis_element_count += 1;
+                    k -= 1;
+                    if k == 0 {
+                        break;
+                    }
+                }
+            }
+
+            let mut common_basis_elements = vec![];
+            {
+                let mut j = i + 1;
+                while j < terms.len() {
+                    if terms[i].0[terms[i].0.len().saturating_sub(basis_element_count)..]
+                        == terms[j].0[terms[j].0.len().saturating_sub(basis_element_count)..]
+                    {
+                        let mut other_term = terms.remove(j);
+                        other_term
+                            .0
+                            .drain(other_term.0.len() - basis_element_count..);
+                        common_basis_elements.push(other_term);
+                        continue;
+                    }
+
+                    j += 1;
+                }
+            }
+
+            if !common_basis_elements.is_empty() {
+                let mut term = terms.remove(i);
+                let basis_elements = term
+                    .0
+                    .drain(term.0.len() - basis_element_count..)
+                    .collect::<Vec<_>>();
+                terms.insert(
+                    i,
+                    Term(
+                        [Atom::Group(Expression(
+                            [term].into_iter().chain(common_basis_elements).collect(),
+                        ))]
+                        .into_iter()
+                        .chain(basis_elements)
+                        .collect(),
+                    ),
+                );
+            }
+
+            i += 1;
+        }
+    }
+
+    // Expand brackets with nothing in them
+    {
+        let mut finished = false;
+        while !finished {
+            finished = true;
+            let mut new_terms = vec![];
+            terms.retain_mut(|Term(atoms)| {
+                if atoms.len() == 1 {
+                    if let Atom::Group(Expression(terms)) = &mut atoms[0] {
+                        finished = false;
+                        new_terms.append(terms);
+                        return false;
+                    }
+                }
+                true
+            });
+            terms.extend(new_terms);
+        }
+    }
 
     terms.sort();
     Expression(terms)
@@ -289,12 +372,10 @@ pub fn simplify_term(Term(atoms): Term) -> Term {
 
                     atoms.remove(i);
                     atoms[i] = a.squares_to();
-                } else {
-                    i += 1;
+                    continue;
                 }
-            } else {
-                i += 1;
             }
+            i += 1;
         }
     }
 
