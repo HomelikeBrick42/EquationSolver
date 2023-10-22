@@ -33,6 +33,11 @@ fn parse_expression(lexer: &mut Peekable<Lexer<'_>>) -> Result<Expression, Strin
 fn parse_term(lexer: &mut Peekable<Lexer<'_>>) -> Result<Term, String> {
     let mut atoms = vec![];
     while {
+        while let Some(Ok((_, Token::Minus))) = lexer.peek() {
+            lexer.next().transpose()?;
+            atoms.push(Atom::Number(-1));
+        }
+
         let atom = parse_atom(lexer)?;
         atoms.push(atom);
 
