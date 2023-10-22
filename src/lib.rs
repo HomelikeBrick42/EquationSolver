@@ -169,33 +169,32 @@ pub fn simplify_expression(Expression(terms): Expression) -> Expression {
                 }
             }
 
-            if !like_terms.is_empty() {
-                let mut total_scalar = 1;
-                terms[i].0.retain(|atom| {
-                    if let &Atom::Number(value) = atom {
-                        total_scalar *= value;
-                        false
-                    } else {
-                        true
-                    }
-                });
-                for like_term in like_terms {
-                    let mut scalar = 1;
-                    for atom in &like_term.0 {
-                        if let &Atom::Number(value) = atom {
-                            scalar *= value;
-                        }
-                    }
-                    total_scalar += scalar;
-                }
-                terms[i].0.push(Atom::Number(total_scalar));
-                if total_scalar != 0 {
-                    terms[i] = simplify_term(Term(std::mem::take(&mut terms[i].0)));
+            let mut total_scalar = 1;
+            terms[i].0.retain(|atom| {
+                if let &Atom::Number(value) = atom {
+                    total_scalar *= value;
+                    false
                 } else {
-                    terms.remove(i);
-                    continue;
+                    true
                 }
+            });
+            for like_term in like_terms {
+                let mut scalar = 1;
+                for atom in &like_term.0 {
+                    if let &Atom::Number(value) = atom {
+                        scalar *= value;
+                    }
+                }
+                total_scalar += scalar;
             }
+            terms[i].0.push(Atom::Number(total_scalar));
+            if total_scalar != 0 {
+                terms[i] = simplify_term(Term(std::mem::take(&mut terms[i].0)));
+            } else {
+                terms.remove(i);
+                continue;
+            }
+
             i += 1;
         }
     }
