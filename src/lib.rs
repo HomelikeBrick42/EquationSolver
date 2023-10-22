@@ -6,11 +6,53 @@ pub struct Term(Vec<Atom>);
 pub enum Atom {
     Number(isize),
     Variable(String),
+    Basis(BasisElement),
     Group(Expression),
     Fraction {
         numerator: Expression,
         denominator: Expression,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BasisElement {
+    E0,
+    E1,
+    E2,
+}
+
+impl BasisElement {
+    pub fn squares_to(&self) -> Atom {
+        match self {
+            BasisElement::E0 => Atom::Number(0),
+            BasisElement::E1 => Atom::Number(1),
+            BasisElement::E2 => Atom::Number(1),
+        }
+    }
+}
+
+enum Commutitivity {
+    Commutitive,
+    AntiCommutitive,
+}
+
+impl Atom {
+    fn commutitivity(&self, other: &Atom) -> Option<Commutitivity> {
+        match (self, other) {
+            (Atom::Number(_) | Atom::Variable(_), _) | (_, Atom::Number(_) | Atom::Variable(_)) => {
+                Some(Commutitivity::Commutitive)
+            }
+            (Atom::Basis(a), Atom::Basis(b)) => {
+                if a == b {
+                    Some(Commutitivity::Commutitive)
+                } else {
+                    Some(Commutitivity::AntiCommutitive)
+                }
+            }
+            (Atom::Group(_) | Atom::Fraction { .. }, _)
+            | (_, Atom::Group(_) | Atom::Fraction { .. }) => None,
+        }
+    }
 }
 
 impl std::fmt::Display for Expression {
@@ -42,6 +84,11 @@ impl std::fmt::Display for Atom {
         match self {
             Atom::Number(number) => write!(f, "{number}"),
             Atom::Variable(name) => write!(f, "{name}"),
+            Atom::Basis(basis) => match basis {
+                BasisElement::E0 => write!(f, "e0"),
+                BasisElement::E1 => write!(f, "e1"),
+                BasisElement::E2 => write!(f, "e2"),
+            },
             Atom::Group(group) => write!(f, "({group})"),
             Atom::Fraction {
                 numerator,
@@ -196,7 +243,10 @@ pub fn simplify_term(Term(atoms): Term) -> Term {
         atoms.insert(0, Atom::Number(scalar));
     }
 
+    let mut changed = false;
+
     let mut sorted = false;
+    let mut sign_flipped = false;
     while !sorted {
         sorted = true;
         for i in 1..atoms.len() {
@@ -204,23 +254,56 @@ pub fn simplify_term(Term(atoms): Term) -> Term {
                 unreachable!();
             };
 
-            // TODO: handle non-communtivity
             if a > b {
-                sorted = false;
-                std::mem::swap(a, b);
+                if let Some(commutitivity) = a.commutitivity(b) {
+                    sorted = false;
+                    changed = true;
+
+                    std::mem::swap(a, b);
+                    match commutitivity {
+                        Commutitivity::Commutitive => {}
+                        Commutitivity::AntiCommutitive => sign_flipped = !sign_flipped,
+                    }
+                }
+            }
+        }
+    }
+    if sign_flipped {
+        changed = true;
+        atoms.insert(0, Atom::Number(-1));
+    }
+
+    let mut combined = false;
+    while !combined {
+        combined = true;
+        let mut i = 0;
+        while i < atoms.len() {
+            if let [Atom::Basis(a), Atom::Basis(b), ..] = atoms[i..] {
+                if a == b {
+                    combined = false;
+                    changed = true;
+
+                    atoms.remove(i);
+                    atoms[i] = a.squares_to();
+                }
+            } else {
+                i += 1;
             }
         }
     }
 
-    // TODO: handle elements squaring
-
-    Term(atoms)
+    if changed {
+        simplify_term(Term(atoms))
+    } else {
+        Term(atoms)
+    }
 }
 
 pub fn simplify_atom(atom: Atom) -> Atom {
     match atom {
         Atom::Number(number) => Atom::Number(number),
         Atom::Variable(name) => Atom::Variable(name),
+        Atom::Basis(basis) => Atom::Basis(basis),
         Atom::Group(Expression(mut terms)) => {
             if terms.len() == 1 && terms[0].0.len() == 1 {
                 terms.remove(0).0.remove(0)
