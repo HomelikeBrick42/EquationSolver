@@ -290,6 +290,8 @@ pub fn simplify_term(Term(atoms): Term) -> Term {
 
                     atoms.remove(i);
                     atoms[i] = a.squares_to();
+                } else {
+                    i += 1;
                 }
             } else {
                 i += 1;
