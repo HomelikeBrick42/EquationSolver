@@ -1,7 +1,12 @@
+#![deny(rust_2018_idioms)]
+
+pub mod lexer;
+pub mod parser;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Expression(Vec<Term>);
+pub struct Expression(pub Vec<Term>);
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Term(Vec<Atom>);
+pub struct Term(pub Vec<Atom>);
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Atom {
     Number(isize),
