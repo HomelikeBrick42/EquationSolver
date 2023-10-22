@@ -5,6 +5,7 @@ pub mod parser;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Expression(pub Vec<Term>);
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Term(pub Vec<Atom>);
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -226,13 +227,26 @@ pub fn simplify_expression(Expression(terms): Expression) -> Expression {
             {
                 let mut j = i + 1;
                 while j < terms.len() {
-                    if terms[i].0[terms[i].0.len().saturating_sub(basis_element_count)..]
-                        == terms[j].0[terms[j].0.len().saturating_sub(basis_element_count)..]
+                    let mut other_basis_element_count = 0;
+                    {
+                        let mut k = terms[j].0.len();
+                        while let Atom::Basis(_) = terms[j].0[k - 1] {
+                            other_basis_element_count += 1;
+                            k -= 1;
+                            if k == 0 {
+                                break;
+                            }
+                        }
+                    }
+
+                    if basis_element_count == other_basis_element_count
+                        && terms[i].0[terms[i].0.len() - basis_element_count..]
+                            == terms[j].0[terms[j].0.len() - other_basis_element_count..]
                     {
                         let mut other_term = terms.remove(j);
                         other_term
                             .0
-                            .drain(other_term.0.len() - basis_element_count..);
+                            .drain(other_term.0.len() - other_basis_element_count..);
                         common_basis_elements.push(other_term);
                         continue;
                     }
